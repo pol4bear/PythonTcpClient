@@ -6,7 +6,6 @@ import errno
 import glog
 import inspect
 import ipaddress
-import KBHit
 import socket
 import sys
 import time
@@ -267,8 +266,6 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--encoding', type=str, help="Encoding that will used in tcp communication")
     args = parser.parse_args()
 
-    kb = KBHit.KBHit()
-
     tcp_client = TcpClient()
     if args.size is not None:
         tcp_client.set_buffer_size(args.size)
@@ -288,25 +285,10 @@ if __name__ == "__main__":
     payload = ""
     while tcp_client.is_connected():
         try:
-            input = kb.getch()
-            keycode = ord(input)
-
-            if keycode == 27:
-                glog.info("ESC pressed. Disconnecting from server...")
-                tcp_client.disconnect()
-                break
-            elif keycode == 10:
-                tcp_client.send(payload.encode(encoding))
-                payload = ""
-                print()
-            elif keycode == 127:
-                payload = payload[:-1]
-                print('\b', end="", flush=True)
-            else:
-                payload += input
-                print(input, end="", flush=True)
+            payload = input().encode(encoding)
+            tcp_client.send(payload)
         except KeyboardInterrupt:
+            print()
             glog.info("CTRL+C pressed. Disconnecting from server...")
             tcp_client.disconnect()
             break
-    kb.set_normal_term()
