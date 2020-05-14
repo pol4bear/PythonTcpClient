@@ -310,8 +310,3 @@ if __name__ == "__main__":
             tcp_client.disconnect()
             break
     kb.set_normal_term()
-        
-        
-            
-    
-    
