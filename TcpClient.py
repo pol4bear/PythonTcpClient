@@ -2,6 +2,7 @@
 
 import argparse
 import codecs
+import errno
 import glog
 import inspect
 import ipaddress
@@ -16,10 +17,9 @@ DEBUG_MODE = False
 
 class TcpClient:
     """Simple client for communicating with server via tcp.
-    Static Attributes:
-        __DEFAULT_BUFFER_SIZE__: A default size of receive buffer. Default: 8192.
-        __DEFAULT_timeout__: A default receive timeout. Default: 5.
     Attributes:
+        DEFAULT_BUFFER_SIZE__: Static. A default size of receive buffer. Default: 8192.
+        DEFAULT_timeout__: Static. A default receive timeout. Default: 5.
         __socket: A socket that connected to server.
         __server_address: An address indicating connected server address.
         __server_port: An integer indicating connected server port.
@@ -136,7 +136,7 @@ class TcpClient:
         if self.__is_connected: # Check if client is already connected
             raise UserWarning("The client is already connected to server.\nDisconnect existing connection before making new connection.")
         if type(server_address) is str:
-            try: # Check if inputted server_address is valid
+            try: # Check if inputted server address is valid
                 self.__server_address = ipaddress.ip_address(server_address)
                 glog.debug("Inputted address is valid. Address is " + ("IPv4") if type(server_address) is ipaddress.IPv4Address else ("IPv6"))
             except ValueError:
@@ -150,7 +150,7 @@ class TcpClient:
             self.__server_address = server_address
             glog.debug("Inputted address is valid. Address is " + ("IPv4") if type(server_address) is ipaddress.IPv4Address else ("IPv6"))
 
-        if not 0 <= server_port < 65535: # Check if inputted server_port is valid
+        if not 0 <= server_port < 65535: # Check if inputted server port is valid
             glog.debug("Inputted port is not valid. Port is " + str(server_port))
             raise ValueError("Inputted server port is not valid") from None
         self.__server_port = server_port
@@ -197,6 +197,18 @@ class TcpClient:
             glog.debug("Payload sent to server: " + payload.decode(self.__encoding))
         except socket.error:
             raise socket.error("Failed to send payload to server") from None
+    def receive(self):
+        try:
+            data = self.__socket.recv(self.__buffer_size)
+            return data
+        except socket.timeout:
+            pass
+        except socket.error as error:
+            if error.errno == errno.ECONNRESET:
+                self.disconnect()
+        return None
+
+
     def start_receive(self, on_received = None):
         """Start receive loop.
         Args:
@@ -232,17 +244,12 @@ class TcpClient:
             on_received: Receive callback for get received data. On None received data will be printed to stdout. Default: None.
         """
         while self.__is_connected and self.__is_receiving:
-            try:
-                data = self.__socket.recv(self.__buffer_size)
-                if len(data) < 1:
-                    self.disconnect()
-                if self.__is_receiving:
-                    if on_received is None:
-                        print(data.decode(self.__encoding))
-                    else:
-                        on_received(data)
-            except socket.timeout:
-                pass
+            data = self.receive()
+            if self.__is_receiving and data and len(data) > 1:
+                if on_received is None:
+                    print(data.decode(self.__encoding))
+                else:
+                    on_received(data)
         
 
 if __name__ == "__main__":
